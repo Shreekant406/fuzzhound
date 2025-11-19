@@ -29,6 +29,7 @@ class APIParser:
         self.base_url = config['target']['base_url']
         self.api_path = config['target']['api_path']
         self.custom_prefix = config['target'].get('custom_prefix', '')
+        self.ignore_basepath = config['target'].get('ignore_basepath', False)
         self.timeout = config['target'].get('timeout', 10)
         self.verify_ssl = config['target'].get('verify_ssl', False)
 
@@ -78,6 +79,10 @@ class APIParser:
     def _parse_url(self):
         """智能解析 URL"""
         from urllib.parse import urlparse
+
+        # 注意：不要清理 URL 中的特殊字符（如 ;）
+        # 某些情况下，; 字符是绕过 WAF 的必要字符，用于访问受保护的 API 文档
+        # 例如: /base-service/;/v2/api-docs 可能是绕过安全限制的有效路径
 
         # 如果 base_url 包含了 API 文档路径，需要分离
         parsed = urlparse(self.base_url)
@@ -132,11 +137,9 @@ class APIParser:
     def parse(self):
         """解析 API 文档"""
         # 构造 API 文档 URL
-        if self.custom_prefix:
-            # 如果有自定义前缀，拼接 prefix + api_path
-            api_doc_url = urljoin(self.base_url, self.custom_prefix.rstrip('/') + self.api_path)
-        else:
-            api_doc_url = urljoin(self.base_url, self.api_path)
+        # 注意：custom_prefix 只作用于实际API请求，不影响获取API文档
+        # 所以这里直接使用 base_url + api_path
+        api_doc_url = urljoin(self.base_url, self.api_path)
 
         console.print(f"[cyan]📡 正在获取 API 文档: {api_doc_url}[/cyan]")
 
@@ -172,6 +175,7 @@ class APIParser:
         common_paths = [p for p in common_paths if p != current_path]
 
         # 逐个尝试
+        # 注意：这里也不使用 custom_prefix，因为它只作用于实际API请求
         for path in common_paths:
             try_url = urljoin(self.base_url, path)
             console.print(f"[dim]🔍 尝试: {try_url}[/dim]")
@@ -370,16 +374,23 @@ class APIParser:
             else:
                 console.print(f"[dim]📍 basePath: {base_path}[/dim]")
 
-        # 合并 host_path 和 base_path
-        # 最终路径 = host中的路径 + basePath
-        if host_path:
-            if base_path == '/' or not base_path:
-                final_base_path = host_path
-            else:
-                final_base_path = host_path.rstrip('/') + '/' + base_path.lstrip('/')
-            console.print(f"[dim]📍 合并后的 basePath: {final_base_path}[/dim]")
+        # 判断是否使用 basePath
+        # 1. 如果用户指定了 --ignore-basepath，则忽略 basePath
+        # 2. 如果用户指定了 --prefix 但没有指定 --ignore-basepath，则使用 basePath（叠加模式）
+        if self.ignore_basepath:
+            console.print(f"[yellow]💡 检测到 --ignore-basepath 参数，将忽略 API 文档中的 basePath[/yellow]")
+            final_base_path = ''
         else:
-            final_base_path = base_path
+            # 合并 host_path 和 base_path
+            # 最终路径 = host中的路径 + basePath
+            if host_path:
+                if base_path == '/' or not base_path:
+                    final_base_path = host_path
+                else:
+                    final_base_path = host_path.rstrip('/') + '/' + base_path.lstrip('/')
+                console.print(f"[dim]📍 合并后的 basePath: {final_base_path}[/dim]")
+            else:
+                final_base_path = base_path
 
         for path, methods in paths.items():
             for method, details in methods.items():
@@ -440,6 +451,12 @@ class APIParser:
                 console.print(f"[dim]📍 检测到完整URL的server，提取路径: {base_path}[/dim]")
             else:
                 console.print(f"[dim]📍 server URL: {base_path}[/dim]")
+
+        # 判断是否使用 server URL 中的路径
+        # 如果用户指定了 --ignore-basepath，则忽略 server URL 中的路径
+        if self.ignore_basepath:
+            console.print(f"[yellow]💡 检测到 --ignore-basepath 参数，将忽略 API 文档中的 server URL 路径[/yellow]")
+            base_path = ''
 
         for path, methods in paths.items():
             for method, details in methods.items():

@@ -164,7 +164,7 @@ def display_config(config):
         console.print(f"[yellow]🐛 调试模式:[/yellow] [red bold]已启用[/red bold]")
         log_config = config.get('logging', {})
         log_dir = log_config.get('log_dir', 'logs')
-        log_file = log_config.get('log_file', 'api_fuzzer.log')
+        log_file = log_config.get('log_file', 'fuzzhound.log')
         console.print(f"[cyan]📝 日志文件:[/cyan] {log_dir}/{log_file}")
     
     # 显示默认参数值

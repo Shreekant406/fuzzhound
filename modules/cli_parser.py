@@ -161,6 +161,11 @@ def create_argument_parser():
   {GREEN}# 数字型 Fuzz（检测 IDOR 漏洞）{END}
   python3 fuzzhound.py -u http://example.com/api-docs --fnumber 1-10000
 
+  {GREEN}# 使用 --prefix 和 --ignore-basepath{END}
+  {GREEN}# API文档: http://example.com/base-service/;/v2/api-docs (basePath: /bs-service){END}
+  {GREEN}# 实际API: http://example.com/base-service/api/user/list{END}
+  python3 fuzzhound.py -u "http://example.com/base-service/;/v2/api-docs" --prefix /base-service/api --ignore-basepath
+
 {MAGENTA}GitHub: https://github.com/RuoJi6/fuzzhound{END}
     """
 
@@ -177,7 +182,8 @@ def create_argument_parser():
     basic_group.add_argument('-p', '--path', metavar='PATH', help='API 文档路径 (如果 -u 是基础 URL，则需要指定此参数)')
     basic_group.add_argument('-c', '--config', metavar='FILE', default='config/config.yaml', help='配置文件路径 (默认: config/config.yaml)')
     basic_group.add_argument('-o', '--output', metavar='DIR', help='输出目录 (覆盖配置文件)')
-    basic_group.add_argument('--prefix', metavar='PREFIX', help='自定义目录前缀 (如: /xxx/aaa/)')
+    basic_group.add_argument('--prefix', metavar='PREFIX', help='API请求路径前缀，仅作用于实际API请求，不影响获取API文档 (如: /api 会将 /user/list 转换为 /api/user/list)')
+    basic_group.add_argument('--ignore-basepath', action='store_true', help='忽略 API 文档中的 basePath/server URL，只使用 API 路径本身。与 --prefix 配合使用时，只会添加 prefix 而不会叠加 basePath')
     basic_group.add_argument('--proxy', metavar='PROXY', help='代理地址 (如: http://127.0.0.1:8080)')
 
     # 性能参数组

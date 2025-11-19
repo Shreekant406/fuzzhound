@@ -58,6 +58,8 @@ def merge_cli_args(config, args):
         config['target']['api_path'] = args.path
     if args.prefix:
         config['target']['custom_prefix'] = args.prefix
+    if hasattr(args, 'ignore_basepath') and args.ignore_basepath:
+        config['target']['ignore_basepath'] = True
     if args.output:
         config['output']['output_dir'] = args.output
     if args.threads:

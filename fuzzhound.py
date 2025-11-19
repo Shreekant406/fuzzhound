@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-API Fuzz 测试工具
-支持 Spring Boot Swagger/OpenAPI 接口测试和 Fuzz
+FuzzHound - API 安全测试工具
+Version: v1.0
+Author: RuoJi
+GitHub: https://github.com/RuoJi6/fuzzhound
+
+支持 Swagger/OpenAPI 自动化测试和智能 Fuzz
+包含字典攻击、SQL注入、IDOR、文件上传等多种测试模式
 """
 
 import sys

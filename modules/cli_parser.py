@@ -65,7 +65,7 @@ class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
 def create_argument_parser():
     """创建命令行参数解析器"""
-    
+
     # ANSI 颜色代码
     CYAN = '\033[96m'
     GREEN = '\033[92m'
@@ -73,14 +73,65 @@ def create_argument_parser():
     MAGENTA = '\033[95m'
     BOLD = '\033[1m'
     END = '\033[0m'
+    WHITE = '\033[97m'
+    BLUE = '\033[94m'
+    DIM = '\033[2m'
+
+    # 定义 banner 内容（纯文本，用于计算宽度）
+    plain_lines = [
+        "",
+        "   🐕 FuzzHound - API 安全测试工具",
+        "",
+        "   Version: v1.0  |  Author: RuoJi",
+        "",
+        "   支持 Swagger/OpenAPI 自动化测试和智能 Fuzz",
+        "",
+        "   GitHub: https://github.com/RuoJi6/fuzzhound",
+        "",
+    ]
+
+    # 定义带颜色的内容
+    colored_lines = [
+        "",
+        f"   🐕 {YELLOW}FuzzHound{CYAN} - API 安全测试工具",
+        "",
+        f"   {WHITE}Version:{CYAN} {GREEN}v1.0{CYAN}  |  {WHITE}Author:{CYAN} {MAGENTA}RuoJi{CYAN}",
+        "",
+        f"   {DIM}支持 Swagger/OpenAPI 自动化测试和智能 Fuzz{END}{CYAN}",
+        "",
+        f"   {BLUE}GitHub:{CYAN} https://github.com/RuoJi6/fuzzhound",
+        "",
+    ]
+
+    # 计算最大宽度（使用纯文本计算，emoji 算作2个字符宽度）
+    def display_width(text):
+        """计算字符串的显示宽度，emoji 算作2个字符"""
+        width = 0
+        for char in text:
+            # emoji 和中文字符占2个宽度
+            if ord(char) > 0x1F300 or '\u4e00' <= char <= '\u9fff':
+                width += 2
+            else:
+                width += 1
+        return width
+
+    max_width = max(display_width(line) for line in plain_lines)
+
+    # 构建自适应框
+    top_border = f"╔{'═' * (max_width + 2)}╗"
+    bottom_border = f"╚{'═' * (max_width + 2)}╝"
+
+    banner_lines = [top_border]
+    for i, line in enumerate(colored_lines):
+        # 计算实际显示宽度
+        visible_len = display_width(plain_lines[i])
+        padding = max_width - visible_len
+        banner_lines.append(f"║ {line}{' ' * padding} ║")
+    banner_lines.append(bottom_border)
 
     # 自定义帮助信息
     description = f"""
-{CYAN}{BOLD}╔══════════════════════════════════════════════════════════════════════════════╗
-║                  🐕 FuzzHound - API 安全测试工具                             ║
-║                  Swagger/OpenAPI 智能 Fuzz 测试  by ruoji                    ║
-║                  GitHub: https://github.com/RuoJi6/fuzzhound                 ║
-╚══════════════════════════════════════════════════════════════════════════════╝{END}
+{CYAN}{BOLD}{chr(10).join(banner_lines)}{END}
 
     """
 

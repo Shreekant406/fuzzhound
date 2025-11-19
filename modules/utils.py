@@ -98,20 +98,40 @@ def setup_logger(config=None, verbose=False, debug=False):
 
 def print_banner():
     """打印 Banner"""
-    banner = """
-[bold cyan]
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🐕 FuzzHound - API 安全测试工具    by ruoji             ║
-║                                                           ║
-║   支持 Swagger/OpenAPI 自动化测试和智能 Fuzz              ║
-║                                                           ║
-║   GitHub: https://github.com/RuoJi6/fuzzhound             ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-[/bold cyan]
-    """
-    console.print(banner)
+    from rich.panel import Panel
+    from rich.text import Text
+
+    # 创建 banner 内容
+    content = Text()
+    content.append("\n")
+    content.append("   🐕 ", style="bold cyan")
+    content.append("FuzzHound", style="bold yellow")
+    content.append(" - API 安全测试工具\n\n", style="bold cyan")
+
+    content.append("   ", style="bold cyan")
+    content.append("Version: ", style="bold white")
+    content.append("v1.0", style="bold green")
+    content.append("  |  ", style="bold cyan")
+    content.append("Author: ", style="bold white")
+    content.append("RuoJi", style="bold magenta")
+    content.append("\n\n", style="bold cyan")
+
+    content.append("   支持 Swagger/OpenAPI 自动化测试和智能 Fuzz\n\n", style="dim cyan")
+
+    content.append("   ", style="bold cyan")
+    content.append("GitHub: ", style="bold blue")
+    content.append("https://github.com/RuoJi6/fuzzhound\n", style="bold cyan")
+    content.append("\n")
+
+    # 使用 Panel 创建自适应边框
+    panel = Panel(
+        content,
+        border_style="bold cyan",
+        expand=False,
+        padding=(0, 1)
+    )
+
+    console.print(panel)
 
 
 def load_dict_file(file_path):

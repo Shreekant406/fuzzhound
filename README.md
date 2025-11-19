@@ -351,7 +351,7 @@ admin
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=RuoJi6/fuzzhound&type=Timeline)](https://star-history.com/#RuoJi6/fuzzhound&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=RuoJi6/fuzzhound&type=date&legend=top-left)](https://www.star-history.com/#RuoJi6/fuzzhound&type=date&legend=top-left)
 
 ---
 

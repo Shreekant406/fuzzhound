@@ -12,7 +12,7 @@ logger = logging.getLogger('fuzzhound')
 
 
 def create_normal_test_handler(config, request_builder, request_sender, reporter,
-                               fuzz_detector, any_fuzz_enabled, delay, progress, print_lock, api_status_map):
+                               fuzz_detector, any_fuzz_enabled, delay, progress, print_lock, api_status_map, interrupted):
     """创建普通测试处理函数
 
     Args:
@@ -26,6 +26,7 @@ def create_normal_test_handler(config, request_builder, request_sender, reporter
         progress: 进度条对象
         print_lock: 打印锁
         api_status_map: API 状态码映射字典
+        interrupted: 中断标志
 
     Returns:
         function: 处理函数
@@ -39,11 +40,19 @@ def create_normal_test_handler(config, request_builder, request_sender, reporter
         api_key = f"{api.get('method', 'GET')}:{api.get('path', '')}"
 
         try:
+            # 检查是否被中断
+            if interrupted.is_set():
+                return api_results
+
             # 检查是否在黑名单中
             blacklist_config = config.get('blacklist', {})
             ignore_blacklist = blacklist_config.get('ignore_blacklist', False)
 
             if api.get('is_blacklisted', False) and not ignore_blacklist:
+                # 检查是否被中断
+                if interrupted.is_set():
+                    return api_results
+
                 # 黑名单 API 不发送请求，只显示提示
                 with print_lock:
                     method = api.get('method', 'GET')
@@ -68,6 +77,10 @@ def create_normal_test_handler(config, request_builder, request_sender, reporter
 
             # 发送请求
             for idx, req in enumerate(requests_list):
+                # 检查是否被中断
+                if interrupted.is_set():
+                    break
+
                 # 请求延迟
                 if delay > 0:
                     time.sleep(delay)
@@ -84,23 +97,25 @@ def create_normal_test_handler(config, request_builder, request_sender, reporter
                 if idx == 0:
                     api_status_map[api_key] = result.get('status_code', 0)
 
-                # 线程安全地打印结果
-                with print_lock:
-                    output = reporter.format_result(result)
-                    progress.console.print(output)
+                # 检查是否被中断，如果被中断则不打印
+                if not interrupted.is_set():
+                    # 线程安全地打印结果
+                    with print_lock:
+                        output = reporter.format_result(result)
+                        progress.console.print(output)
 
         except Exception as e:
             logger.error(f"处理 API {api.get('path', 'unknown')} 时出错: {e}")
 
         return api_results
-    
+
     return process_api_normal
 
 
-def create_fuzz_test_handler(config, request_sender, reporter, fuzz_detector, 
-                             sql_detector, any_fuzz_enabled, delay, print_lock):
+def create_fuzz_test_handler(config, request_sender, reporter, fuzz_detector,
+                             sql_detector, any_fuzz_enabled, delay, print_lock, interrupted):
     """创建 Fuzz 测试处理函数
-    
+
     Args:
         config: 配置字典
         request_sender: 请求发送器
@@ -110,13 +125,17 @@ def create_fuzz_test_handler(config, request_sender, reporter, fuzz_detector,
         any_fuzz_enabled: 是否启用了任何 Fuzz
         delay: 请求延迟
         print_lock: 打印锁
-        
+        interrupted: 中断标志
+
     Returns:
         function: 处理函数
     """
     def process_single_fuzz_request(req, fuzz_progress_obj):
         """处理单个 Fuzz 请求（线程安全）"""
         try:
+            # 检查是否被中断
+            if interrupted.is_set():
+                return None
             # 请求延迟
             if delay > 0:
                 time.sleep(delay)

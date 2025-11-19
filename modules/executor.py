@@ -28,6 +28,9 @@ logger = logging.getLogger('fuzzhound')
 results_lock = threading.Lock()
 print_lock = threading.Lock()
 
+# 全局中断标志
+interrupted = threading.Event()
+
 
 def display_config(config):
     """显示配置信息
@@ -286,8 +289,14 @@ def execute_fuzz_tests(config, apis, request_builder, request_sender, reporter,
         threads: 线程数
         delay: 请求延迟
         api_status_map: API 状态码映射字典 {api_key: status_code}
+
+    Returns:
+        list: Fuzz 测试结果列表
     """
     console.print(f"\n[cyan]📍 阶段 2/2: Fuzz 测试[/cyan]\n")
+
+    # 用于收集 Fuzz 测试结果
+    fuzz_results = []
 
     # 获取 Fuzz 前置筛选配置
     fuzz_filter_codes = config.get('fuzz_detection', {}).get('fuzz_filter_codes', [])
@@ -343,7 +352,7 @@ def execute_fuzz_tests(config, apis, request_builder, request_sender, reporter,
     if len(all_fuzz_requests) == 0:
         fuzz_progress.stop()
         console.print(f"[yellow]⚠️  没有符合条件的API需要进行Fuzz测试[/yellow]")
-        return
+        return fuzz_results
 
     fuzz_task = fuzz_progress.add_task("[yellow]Fuzz 测试进度", total=len(all_fuzz_requests))
 
@@ -352,80 +361,111 @@ def execute_fuzz_tests(config, apis, request_builder, request_sender, reporter,
     # 创建 Fuzz 处理函数
     process_single_fuzz_request = create_fuzz_test_handler(
         config, request_sender, reporter, fuzz_detector,
-        sql_detector, any_fuzz_enabled, delay, print_lock
+        sql_detector, any_fuzz_enabled, delay, print_lock, interrupted
     )
 
+    # 创建线程池（不使用 with 语句，以便在中断时立即关闭）
+    fuzz_executor = ThreadPoolExecutor(max_workers=threads)
+
     try:
-        # 使用线程池并发处理所有 Fuzz 请求
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            # 提交所有 Fuzz 请求任务
-            future_to_req = {
-                executor.submit(process_single_fuzz_request, req, fuzz_progress): req
-                for req in all_fuzz_requests
-            }
+        # 提交所有 Fuzz 请求任务
+        future_to_req = {
+            fuzz_executor.submit(process_single_fuzz_request, req, fuzz_progress): req
+            for req in all_fuzz_requests
+        }
 
-            # 处理完成的任务
-            for future in as_completed(future_to_req):
-                try:
-                    result = future.result()
+        # 处理完成的任务
+        for future in as_completed(future_to_req):
+            try:
+                result = future.result()
 
-                    # 线程安全地打印结果
-                    if result:
-                        with print_lock:
-                            # 判断是否应该显示此结果
-                            should_print = False
-                            fuzz_type = result.get('fuzz_type', 'normal')
+                # 线程安全地收集和打印结果
+                if result:
+                    # 收集结果到列表中
+                    with results_lock:
+                        fuzz_results.append(result)
 
-                            # 调试模式：显示所有结果
-                            if config.get('debug', {}).get('enabled', False):
+                    with print_lock:
+                        # 判断是否应该显示此结果
+                        should_print = False
+                        fuzz_type = result.get('fuzz_type', 'normal')
+
+                        # 调试模式：显示所有结果
+                        if config.get('debug', {}).get('enabled', False):
+                            should_print = True
+                        # SQL注入Fuzz：只显示检测到漏洞的结果
+                        elif fuzz_type == 'sql_fuzz':
+                            if result.get('fuzz_analysis') and result['fuzz_analysis'].get('score', 0) > 0:
                                 should_print = True
-                            # SQL注入Fuzz：只显示检测到漏洞的结果
-                            elif fuzz_type == 'sql_fuzz':
-                                if result.get('fuzz_analysis') and result['fuzz_analysis'].get('score', 0) > 0:
+                        # 其他Fuzz类型：只显示有异常的结果（状态码异常、响应异常等）
+                        elif fuzz_type in ['username_fuzz', 'password_fuzz', 'number_fuzz']:
+                            # 如果有 Fuzz 分析结果，检查分数是否达到阈值
+                            if result.get('fuzz_analysis'):
+                                analysis = result['fuzz_analysis']
+                                # 只显示 "可能有效" 或 "高度可疑" 的结果（score >= 50）
+                                if analysis.get('level') in ['possible', 'likely']:
                                     should_print = True
-                            # 其他Fuzz类型：只显示有异常的结果（状态码异常、响应异常等）
-                            elif fuzz_type in ['username_fuzz', 'password_fuzz', 'number_fuzz']:
-                                # 如果有 Fuzz 分析结果，检查分数是否达到阈值
-                                if result.get('fuzz_analysis'):
-                                    analysis = result['fuzz_analysis']
-                                    # 只显示 "可能有效" 或 "高度可疑" 的结果（score >= 50）
-                                    if analysis.get('level') in ['possible', 'likely']:
-                                        should_print = True
-                            # 其他未知类型：显示所有结果
-                            else:
-                                should_print = True
+                        # 其他未知类型：显示所有结果
+                        else:
+                            should_print = True
 
-                            # 应用状态码筛选（如果配置了）
-                            if should_print:
-                                filter_status_codes = config.get('fuzz_detection', {}).get('filter_status_codes', [])
-                                # 如果配置了状态码筛选（非空列表），则只显示匹配的状态码
-                                if filter_status_codes:
-                                    status_code = result.get('status_code', 0)
-                                    if status_code not in filter_status_codes:
-                                        should_print = False
+                        # 应用状态码筛选（如果配置了）
+                        if should_print:
+                            filter_status_codes = config.get('fuzz_detection', {}).get('filter_status_codes', [])
+                            # 如果配置了状态码筛选（非空列表），则只显示匹配的状态码
+                            if filter_status_codes:
+                                status_code = result.get('status_code', 0)
+                                if status_code not in filter_status_codes:
+                                    should_print = False
 
-                            if should_print:
-                                output = reporter.format_result(result)
-                                fuzz_progress.console.print(output)
+                        if should_print:
+                            output = reporter.format_result(result)
+                            fuzz_progress.console.print(output)
 
-                                # 如果有 Fuzz 分析结果，打印详细信息
-                                if result.get('fuzz_analysis'):
-                                    analysis = result['fuzz_analysis']
-                                    if analysis['level'] in ['likely', 'possible']:
-                                        detail = (
-                                            f"         {'':8} {'':10} {'':8} {'':7} "
-                                            f"[yellow]└─ {analysis['icon']} {analysis['label']} (评分: {analysis['score']}) "
-                                            f"原因: {', '.join(analysis['reasons'])}[/yellow]"
-                                        )
-                                        fuzz_progress.console.print(detail)
+                            # 如果有 Fuzz 分析结果，打印详细信息
+                            if result.get('fuzz_analysis'):
+                                analysis = result['fuzz_analysis']
+                                if analysis['level'] in ['likely', 'possible']:
+                                    detail = (
+                                        f"         {'':8} {'':10} {'':8} {'':7} "
+                                        f"[yellow]└─ {analysis['icon']} {analysis['label']} (评分: {analysis['score']}) "
+                                        f"原因: {', '.join(analysis['reasons'])}[/yellow]"
+                                    )
+                                    fuzz_progress.console.print(detail)
 
-                except Exception as e:
-                    logger.error(f"处理 Fuzz 请求时出错: {e}")
-                finally:
-                    # 更新进度条
-                    fuzz_progress.update(fuzz_task, advance=1)
+            except Exception as e:
+                logger.error(f"处理 Fuzz 请求时出错: {e}")
+            finally:
+                # 更新进度条
+                fuzz_progress.update(fuzz_task, advance=1)
+
+        # 正常完成，关闭线程池
+        fuzz_executor.shutdown(wait=True)
+
+    except KeyboardInterrupt:
+        # 设置中断标志
+        interrupted.set()
+
+        # 用户中断 Fuzz 测试，立即停止
+        console.print(f"\n[yellow]⚠️  Fuzz 测试被中断[/yellow]")
+        fuzz_executor.shutdown(wait=False, cancel_futures=True)
+        fuzz_progress.stop()
+
+        # 等待一小段时间，让正在执行的线程有机会检查中断标志
+        time.sleep(0.5)
+
+        raise
+
+    except Exception as e:
+        # 发生其他异常，关闭线程池
+        fuzz_executor.shutdown(wait=False, cancel_futures=True)
+        fuzz_progress.stop()
+        raise e
+
     finally:
         fuzz_progress.stop()
+
+    return fuzz_results
 
 
 def execute_tests(config):
@@ -501,50 +541,58 @@ def execute_tests(config):
     # 使用实际的请求数量作为进度条总数
     task = progress.add_task("[cyan]普通测试进度", total=total_normal_requests)
 
+    # 重置中断标志
+    interrupted.clear()
+
     # 创建处理函数
     process_api_normal = create_normal_test_handler(
         config, request_builder, request_sender, reporter,
-        fuzz_detector, any_fuzz_enabled, delay, progress, print_lock, api_status_map
+        fuzz_detector, any_fuzz_enabled, delay, progress, print_lock, api_status_map, interrupted
     )
+
+    # 创建线程池（不使用 with 语句，以便在中断时立即关闭）
+    executor = ThreadPoolExecutor(max_workers=threads)
 
     try:
         # ========== 第一阶段：普通测试 ==========
         console.print(f"[cyan]📍 阶段 1/2: 普通API测试[/cyan]\n")
 
-        # 使用线程池并发处理普通请求
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            # 提交所有普通测试任务
-            future_to_api = {executor.submit(process_api_normal, api): api for api in apis}
+        # 提交所有普通测试任务
+        future_to_api = {executor.submit(process_api_normal, api): api for api in apis}
 
-            # 处理完成的任务
-            for future in as_completed(future_to_api):
-                api = future_to_api[future]
-                try:
-                    api_results = future.result()
+        # 处理完成的任务
+        for future in as_completed(future_to_api):
+            api = future_to_api[future]
+            try:
+                api_results = future.result()
 
-                    # 线程安全地添加结果
-                    with results_lock:
-                        results.extend(api_results)
+                # 线程安全地添加结果
+                with results_lock:
+                    results.extend(api_results)
 
-                    # 更新进度条（根据实际生成的请求数量）
-                    progress.update(task, advance=len(api_results))
+                # 更新进度条（根据实际生成的请求数量）
+                progress.update(task, advance=len(api_results))
 
-                except Exception as e:
-                    logger.error(f"处理 API {api.get('path', 'unknown')} 时出错: {e}")
-                    # 即使出错也要更新进度条，避免卡住
-                    progress.update(task, advance=1)
+            except Exception as e:
+                logger.error(f"处理 API {api.get('path', 'unknown')} 时出错: {e}")
+                # 即使出错也要更新进度条，避免卡住
+                progress.update(task, advance=1)
 
+        # 正常完成，关闭线程池
+        executor.shutdown(wait=True)
         progress.stop()
 
         # ========== 第二阶段：Fuzz 测试 ==========
         if any_fuzz_enabled:
-            execute_fuzz_tests(
+            fuzz_results = execute_fuzz_tests(
                 config, apis, request_builder, request_sender, reporter,
                 fuzz_detector, sql_detector, any_fuzz_enabled,
                 fuzz_username_enabled, fuzz_password_enabled,
                 fuzz_number_enabled, fuzz_sql_enabled,
                 threads, delay, api_status_map
             )
+            # 将 Fuzz 测试结果合并到总结果中
+            results.extend(fuzz_results)
 
         # 生成测试报告
         console.print(f"\n[yellow]📊 正在生成报告...[/yellow]")
@@ -558,7 +606,45 @@ def execute_tests(config):
         output_dir = Path(config['output']['output_dir'])
         console.print(f"\n[green]✓ 测试完成！报告已保存到: {output_dir / config['output']['html_report']}[/green]")
 
+    except KeyboardInterrupt:
+        # 设置中断标志，通知所有工作线程停止打印
+        interrupted.set()
+
+        # 用户手动中断，立即停止线程池（不等待未完成的任务）
+        console.print(f"\n[yellow]⚠️  检测到用户中断，正在停止所有任务...[/yellow]")
+        executor.shutdown(wait=False, cancel_futures=True)
+        progress.stop()
+
+        # 等待一小段时间，让正在执行的线程有机会检查中断标志
+        time.sleep(0.5)
+
+        console.print(f"[yellow]⚠️  正在保存已收集的数据...[/yellow]")
+
+        # 如果有结果，生成报告
+        if results:
+            try:
+                console.print(f"[yellow]📊 正在生成报告...[/yellow]")
+                reporter.generate_html_report(results, apis)
+
+                # 打印统计信息
+                reporter.print_summary(results)
+
+                # 获取输出目录
+                from pathlib import Path
+                output_dir = Path(config['output']['output_dir'])
+                console.print(f"\n[green]✓ 已保存 {len(results)} 个测试结果到: {output_dir / config['output']['html_report']}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ 保存报告时出错: {e}[/red]")
+                logger.error(f"保存报告时出错: {e}")
+        else:
+            console.print(f"[yellow]⚠️  没有收集到任何测试结果[/yellow]")
+
+        # 重新抛出异常，让上层处理
+        raise
+
     except Exception as e:
+        # 发生其他异常，关闭线程池
+        executor.shutdown(wait=False, cancel_futures=True)
         progress.stop()
         raise e
 

@@ -255,8 +255,9 @@ class RequestBuilder:
             if not is_string:
                 return False
 
-        # 如果关键字列表为空或包含 'all'，测试所有字符串型参数
-        if not self.username_keywords or 'all' in self.username_keywords:
+        # 如果配置了 mode='all'，或者关键字列表为空或包含 'all'，测试所有字符串型参数
+        mode = self.config.get('fuzz_username', {}).get('mode', 'default')
+        if mode == 'all' or not self.username_keywords or 'all' in self.username_keywords:
             logger.debug(f"🎯 参数 '{param_name}' 将进行用户名 Fuzz（all模式）")
             return True
 
@@ -290,8 +291,9 @@ class RequestBuilder:
             if not is_string:
                 return False
 
-        # 如果关键字列表为空或包含 'all'，测试所有字符串型参数
-        if not self.password_keywords or 'all' in self.password_keywords:
+        # 如果配置了 mode='all'，或者关键字列表为空或包含 'all'，测试所有字符串型参数
+        mode = self.config.get('fuzz_password', {}).get('mode', 'default')
+        if mode == 'all' or not self.password_keywords or 'all' in self.password_keywords:
             logger.debug(f"🎯 参数 '{param_name}' 将进行密码 Fuzz（all模式）")
             return True
 
@@ -332,8 +334,9 @@ class RequestBuilder:
         if is_string and not test_string:
             return False
 
-        # 如果没有配置关键字或包含 'all'，测试所有符合类型的参数
-        if not self.sql_keywords or 'all' in self.sql_keywords:
+        # 如果配置了 mode='all'，或者没有配置关键字或包含 'all'，测试所有符合类型的参数
+        mode = self.config.get('fuzz_sql', {}).get('mode', 'smart')
+        if mode == 'all' or not self.sql_keywords or 'all' in self.sql_keywords:
             logger.debug(f"🎯 参数 '{param_name}' 将进行SQL注入 Fuzz（all模式）")
             return True
 

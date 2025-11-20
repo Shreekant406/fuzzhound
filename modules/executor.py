@@ -184,7 +184,11 @@ async def execute_fuzz_tests_async(config, apis, request_builder, request_sender
 
     if len(all_fuzz_requests) == 0:
         fuzz_progress.stop()
-        console.print(f"[yellow]⚠️  没有符合条件的API需要进行Fuzz测试[/yellow]")
+        if fuzz_filter_codes:
+            console.print(f"[yellow]⚠️  没有符合条件的API需要进行Fuzz测试 (筛选条件: 状态码 {fuzz_filter_codes})[/yellow]")
+        else:
+            console.print(f"[yellow]⚠️  没有符合条件的API需要进行Fuzz测试 (原因: 没有参数匹配默认关键字)[/yellow]")
+            console.print(f"[yellow]💡 提示: 尝试使用 '--fall all' 参数来对所有参数进行Fuzz测试[/yellow]")
         return fuzz_results
 
     fuzz_task = fuzz_progress.add_task("[yellow]Fuzz 测试进度", total=len(all_fuzz_requests))

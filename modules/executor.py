@@ -400,9 +400,7 @@ async def execute_tests_async(config):
         reporter.generate_html_report(results, apis)
         reporter.print_summary(results)
         
-        from pathlib import Path
-        output_dir = Path(config['output']['output_dir'])
-        console.print(f"\n[green]✓ 测试完成！报告已保存到: {output_dir / config['output']['html_report']}[/green]")
+        console.print(f"\n[green]✓ 测试完成！报告已保存到: {reporter.output_dir / config['output']['html_report']}[/green]")
     else:
         console.print(f"\n[yellow]⚠️  没有收集到任何测试结果[/yellow]")
 

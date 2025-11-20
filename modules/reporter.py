@@ -822,7 +822,7 @@ class Reporter:
             <p style="margin-top: 10px; font-size: 0.95em;">📢 级别筛选: {level_desc.get(level_filter, level_filter)}的结果</p>
 """
 
-        html += """
+        html += f"""
         </div>
 
         <div class="summary">

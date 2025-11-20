@@ -130,14 +130,14 @@ fuzz_detection:
 fuzz_username:
   enabled: false  # 是否启用用户名 Fuzz（使用 --fuser 参数启用）
   username_file: "config/usernames.txt"  # 用户名字典文件路径
-  keywords: ["name", "user", "username", "account", "login", "email", "uid", "userid"]  # 匹配的参数名关键字（不区分大小写）
+  keywords: ["name", "user", "username", "account", "login", "email", "uid", "userid", "admin", "member", "customer", "client", "agent", "operator", "nick", "nickname", "handle", "profile"]  # 匹配的参数名关键字（不区分大小写）
   count: 15  # 默认随机挑选的用户名数量（0 或 "all" 表示使用全部字典）
 
 # 密码 Fuzz 配置
 fuzz_password:
   enabled: false  # 是否启用密码 Fuzz（使用 --fpass 参数启用）
   password_file: "config/top100_password.txt"  # 密码字典文件路径
-  keywords: ["pass", "password", "pwd", "passwd", "secret", "credential"]
+  keywords: ["pass", "password", "pwd", "passwd", "secret", "credential", "auth", "token", "key", "access", "code", "pin", "security"]
   count: 15  # 默认随机挑选的密码数量（0 或 "all" 表示使用全部字典）
 
 # 数字型参数 Fuzz 配置
@@ -180,6 +180,23 @@ fuzz_sql:
     - "sql"
     - "cmd"
     - "exec"
+    - "group"
+    - "limit"
+    - "offset"
+    - "page"
+    - "view"
+    - "cat"
+    - "category"
+    - "type"
+    - "class"
+    - "table"
+    - "column"
+    - "field"
+    - "data"
+    - "val"
+    - "value"
+    - "num"
+    - "count"
 
 # 默认参数值配置
 default_values:

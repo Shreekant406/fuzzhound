@@ -127,13 +127,17 @@ class APIParser:
                 # -> api_path = /open-api/v2/api-docs
 
                 self.api_path = path
+                # 如果有查询参数，也保留
+                if parsed.query:
+                    self.api_path += '?' + parsed.query
+                
                 self.base_url = f"{parsed.scheme}://{parsed.netloc}"
 
                 # 同时更新配置，确保其他模块（如 RequestBuilder）使用正确的 base_url
                 self.config['target']['base_url'] = self.base_url
                 self.config['target']['api_path'] = self.api_path
 
-                console.print(f"[dim]🔍 自动检测到 API 文档路径: {path}[/dim]")
+                console.print(f"[dim]🔍 自动检测到 API 文档路径: {self.api_path}[/dim]")
                 return
 
             # 如果没有找到 API 文档关键字，但有路径，可能是自定义前缀

